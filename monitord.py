@@ -1,4 +1,4 @@
-# Example: daemonize pyinotify's notifier.
+# 
 #
 # Requires Python >= 2.5
 import functools
@@ -88,7 +88,7 @@ def on_loop(notifier, counter):
     #time.sleep(1)
 
 def main(argv):
-    config = { 'free_bytes_limit' : 1024*1024*1024,
+    config = { 'free_bytes_limit' : 1024*1024*1024*5,
         'recursive' : False,
         'temp_path' : '/tmp',
         'watch_path' : './'
@@ -104,13 +104,13 @@ def main(argv):
         print 'Starts automatic SASS-C processes when new files are written'
         print
         print ' -l, --limit              minimum free space in watch & temp directories in  bytes'
-        print '                          defaults to', format_size(free_bytes_limit)
+        print '                          defaults to', format_size(config['free_bytes_limit'])
         print ' -r, --recursive          descent into subdirectories'
-        print '                          defaults to', str(recursive)
+        print '                          defaults to', str(config['recursive'])
         print ' -t, --temp-path <path>   temporary path used to process new file files'
-        print "                          defaults to '", temp_path, "'"
+        print "                          defaults to '", config['temp_path'], "'"
         print ' -w, --watch-path <path>  where to look for new files'
-        print "                          defaults to '", watch_path, "'"
+        print "                          defaults to '", config['watch_path'], "'"
 
     try:
         opts, args = getopt.getopt(argv[1:], 'hl:rt:w:', ['help', 'limit=', 
