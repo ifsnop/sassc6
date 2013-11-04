@@ -1,16 +1,24 @@
-# 
-#
-# Requires Python >= 2.5
+#!/usr/bin/env python
+
+""" monitord.py - Starts automatic SASS-C processes when new files are written."""
+
+__author__ = "Diego Torres"
+__copyright__ = "Copyright (C) 2013 Diego Torres <diego dot torres at gmail dot com>"
+
+# Requires Python >= 2.7
+
 import functools
 import sys, os
-import statvfs                  # free space on partitin
-import pyinotify
+import statvfs                  # free space on partition
 import time
 import pprint
 import datetime
 import sys, getopt              # command line arguments
+import ctypes
+import platform                 # get_free_space_bytes()
 from stat import *              # interface to stat.h (get filesize, owner...)
-
+from math import log            # format_size()
+import pyinotify
 
 class Counter(object):
     def __init__(self):
@@ -37,11 +45,9 @@ def format_time():
     t = datetime.datetime.now()
     s = t.strftime('%Y-%m-%d %H:%M:%S.%f')
     tail = s[-7:]
-    #f = int(str(round(float(tail),3))[2:])
     f = str('%0.3f' % round(float(tail),3))[2:]
     return '%s.%s' % (s[:-7], f)
 
-from math import log
 def format_size(num):
     """Human friendly file size"""
     unit_list = zip(['bytes', 'kB', 'MB', 'GB', 'TB', 'PB'], [0, 0, 1, 2, 2, 2])
@@ -56,11 +62,9 @@ def format_size(num):
     if num == 1:
         return '1 byte'
 
-import ctypes
-import platform                 # get free disk space cross-platform way
-def get_free_space_bytes(folder):
-    folder = str(folder)
+def get_free_space_bytes(folder = './'):
     """ Return folder/drive free space (in bytes) """
+    folder = str(folder)
     if platform.system() == 'Windows':
         free_bytes = ctypes.c_ulonglong(0)
         ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(folder), None, None, ctypes.pointer(free_bytes))
