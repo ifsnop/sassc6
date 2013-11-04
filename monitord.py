@@ -170,5 +170,16 @@ def free_volume(filename):
     #   on the file system containing filename.
     stats = Popen(["df", "-Pk", filename], stdout=PIPE).communicate()[0]
     return int(stats.splitlines()[1].split()[3]) * 1024
-"""
 
+http://stackoverflow.com/questions/89228/calling-an-external-command-in-python
+
+from subprocess import call
+call(["ls", "-l"])
+
+The advantage of subprocess vs system is that it is more flexible (you can get the stdout, stderr, the "real" status code, better error handling, etc...). I think os.system is deprecated, too, or will be:
+
+http://docs.python.org/library/subprocess.html#replacing-older-functions-with-the-subprocess-module
+
+For quick/dirty/one time scripts, os.system is enough, though.
+
+"""
