@@ -20,6 +20,12 @@ from stat import *              # interface to stat.h (get filesize, owner...)
 from math import log            # format_size()
 import pyinotify
 
+config = { 'free_bytes_limit' : 1024*1024*1024*5,
+    'recursive' : False,
+    'temp_path' : '/tmp',
+    'watch_path' : './'
+    }
+
 class Counter(object):
     def __init__(self):
         self.count = 0
@@ -40,6 +46,12 @@ class EventHandler(pyinotify.ProcessEvent):
         if S_ISREG(stat.st_mode):
             print '{0} > filename({1}) filesize({2}) extension({3})'\
                 .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+        ret = check_free_space([config['watch_path'], config['temp_path']], config['free_bytes_limit'])
+        if isinstance(ret, basestring):
+            print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['free_bytes_limit']))
+            sys.exit(3)
+        return True
+
 
 def format_time():
     t = datetime.datetime.now()
@@ -92,12 +104,6 @@ def on_loop(notifier, counter):
     #time.sleep(1)
 
 def main(argv):
-    config = { 'free_bytes_limit' : 1024*1024*1024*5,
-        'recursive' : False,
-        'temp_path' : '/tmp',
-        'watch_path' : './'
-        }
-
     def usage():
         print 'usage: ', argv[0], '[-h|--help]'
         print '                 [-l|--limit]'
