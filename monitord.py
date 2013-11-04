@@ -23,7 +23,8 @@ import pyinotify
 config = { 'free_bytes_limit' : 1024*1024*1024*5,
     'recursive' : False,
     'temp_path' : '/tmp',
-    'watch_path' : './'
+    'watch_path' : './',
+    'self': 'monitord.py'
     }
 
 class Counter(object):
@@ -51,7 +52,6 @@ class EventHandler(pyinotify.ProcessEvent):
             print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['free_bytes_limit']))
             sys.exit(3)
         return True
-
 
 def format_time():
     t = datetime.datetime.now()
@@ -101,7 +101,7 @@ def on_loop(notifier, counter):
     #else:
     #    sys.stdout.write("Loop %d\n" % counter.count)
     #    counter.plusone()
-    #time.sleep(1)
+    time.sleep(1)
 
 def main(argv):
     def usage():
@@ -140,8 +140,10 @@ def main(argv):
             config['temp_path'] = os.path.abspath(arg)
         elif opt in ('-w', '--watch-path'):
             config['watch_path'] = os.path.abspath(arg)
+    
+    config['self'] = argv[0]
 
-    print '{0} > {1} init'.format(format_time(), argv[0])
+    print '{0} > {1} init'.format(format_time(), config['self'])
     print '{0} > options: limit({1})'.format(format_time(), format_size(config['free_bytes_limit']))
     print '{0} > options: recursive({1})'.format(format_time(), config['recursive'])
     print '{0} > options: temp_path({1}) free_bytes({2})'.format(format_time(), config['temp_path'], format_size(get_free_space_bytes(config['temp_path'])))
@@ -158,7 +160,7 @@ def main(argv):
     on_loop_func = functools.partial(on_loop, counter=Counter())
     try:
         notifier.loop(daemonize=False, callback=on_loop_func,
-                  pid_file='/var/run/pyinotify.pid', stdout='/tmp/stdout.txt')
+                  pid_file="/var/run/{config['self']}", stdout='/tmp/stdout.txt')
     except pyinotify.NotifierError, err:
         print >> sys.stderr, err
 
