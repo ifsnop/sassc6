@@ -27,6 +27,8 @@ config = { 'free_bytes_limit' : 1024*1024*1024*5,
     'self': 'monitord.py'
     }
 
+valid_extensions = [ '.gps', '.sgps', '.bz2', '.ast', '.sast' ]
+
 class Counter(object):
     def __init__(self):
         self.count = 0
@@ -44,13 +46,29 @@ class EventHandler(pyinotify.ProcessEvent):
             'pathname' : event.pathname,
             'extension' : os.path.splitext(event.pathname)[1]
         }
-        if S_ISREG(stat.st_mode):
-            print '{0} > filename({1}) filesize({2}) extension({3})'\
-                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+        if not S_ISREG(stat.st_mode):
+            return False
+
+        if file['extension'] not in valid_extensions:
+            print '{0} ? filename({1}) filesize({2}) extension({3})'\
+                .format(format_time(), file['name'], format_size(file['size']), file['extension'])        
+            return False
+
         ret = check_free_space([config['watch_path'], config['temp_path']], config['free_bytes_limit'])
         if isinstance(ret, basestring):
             print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['free_bytes_limit']))
             sys.exit(3)
+
+        print '{0} > filename({1}) filesize({2}) extension({3})'\
+                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+
+        if file['extension'] == '.bz2':
+            print '{0} + ({1}) is a bz2 compressed file'.format(format_time(), file['name'])
+        elif file['extension'] == '.gps':
+            print '{0} + ({1}) is an operational recording file'.format(format_time(), file['name'])
+        elif file['extension'] == '.sgps':
+            print '{0} + ({1}) is a mode s recording file'.format(format_time(), file['name'])
+
         return True
 
 def format_time():
