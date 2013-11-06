@@ -110,9 +110,9 @@ def check_free_space(paths, free_bytes_limit):
     return True
 
 def on_loop(notifier, counter):
-    """ ummy function called after each event loop """
+    """ Dummy function called after each event loop """
     #if counter.count > 49:
-    #    # Loops 5 times then exits.
+    #    # Loops 49 times then exits.
     #    sys.stdout.write("Exit\n")
     #    notifier.stop()
     #    sys.exit(0)
