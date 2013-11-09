@@ -16,6 +16,7 @@ import datetime
 import sys, getopt              # command line arguments
 import ctypes
 import platform                 # get_free_space_bytes()
+import re                       # regexp
 from stat import *              # interface to stat.h (get filesize, owner...)
 from math import log            # format_size()
 import pyinotify
@@ -50,14 +51,14 @@ class EventHandler(pyinotify.ProcessEvent):
             return False
 
         if file['extension'] not in valid_extensions:
-            print '{0} ? filename({1}) filesize({2}) extension({3})'\
-                .format(format_time(), file['name'], format_size(file['size']), file['extension'])        
+            print '{0} ? Not recognized extension: filename({1}) filesize({2}) extension({3})'\
+                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
             return False
 
         ret = check_free_space([config['watch_path'], config['temp_path']], config['free_bytes_limit'])
         if isinstance(ret, basestring):
-            print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['free_bytes_limit']))
-            sys.exit(3)
+            print '{0} ! ({1}) has less than {2} free'.format(format_time(), ret, format_size(config['free_bytes_limit']))
+            return False
 
         print '{0} > filename({1}) filesize({2}) extension({3})'\
                 .format(format_time(), file['name'], format_size(file['size']), file['extension'])
@@ -68,6 +69,15 @@ class EventHandler(pyinotify.ProcessEvent):
             print '{0} + ({1}) is an operational recording file'.format(format_time(), file['name'])
         elif file['extension'] == '.sgps':
             print '{0} + ({1}) is a mode s recording file'.format(format_time(), file['name'])
+
+        #p = re.compile(r"re.match("(\d+)-(\S+)-(\d+)", "213-cen-890").groups()", re.IGNORECASE)
+        filename_extracted = re.match("(\d+)-(\S+)-(\d+)", file['name']).groups()
+        if filename_extracted is None:
+            print "{0} ! ({1}) can't be parsed as a valid filename)"\
+                .format(format_time(), file['name'])
+            return False
+
+        pprint.pprint(filename_extracted)
 
         return True
 
@@ -158,7 +168,7 @@ def main(argv):
             config['temp_path'] = os.path.abspath(arg)
         elif opt in ('-w', '--watch-path'):
             config['watch_path'] = os.path.abspath(arg)
-    
+
     config['self'] = argv[0]
 
     print '{0} > {1} init'.format(format_time(), config['self'])
@@ -178,7 +188,7 @@ def main(argv):
     on_loop_func = functools.partial(on_loop, counter=Counter())
     try:
         notifier.loop(daemonize=False, callback=on_loop_func,
-                  pid_file="/var/run/{config['self']}", stdout='/tmp/stdout.txt')
+            pid_file="/var/run/{config['self']}", stdout='/tmp/stdout.txt')
     except pyinotify.NotifierError, err:
         print >> sys.stderr, err
 
