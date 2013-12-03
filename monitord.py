@@ -50,6 +50,11 @@ class EventHandler(pyinotify.ProcessEvent):
         if not S_ISREG(stat.st_mode):
             return False
 
+        if file['size']<500*1024:
+            print '{0} ? File size lower than 500KiB: filename({1}) filesize({2}) extension({3})'\
+                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+            return False
+
         if file['extension'] not in valid_extensions:
             print '{0} ? Not recognized extension: filename({1}) filesize({2}) extension({3})'\
                 .format(format_time(), file['name'], format_size(file['size']), file['extension'])
@@ -73,9 +78,15 @@ class EventHandler(pyinotify.ProcessEvent):
         #p = re.compile(r"re.match("(\d+)-(\S+)-(\d+)", "213-cen-890").groups()", re.IGNORECASE)
         filename_extracted = re.match("(\d+)-(\S+)-(\d+)", file['name']).groups()
         if filename_extracted is None:
-            print "{0} ! ({1}) can't be parsed as a valid filename)"\
+            print "{0} ! ({1}) can't be parsed as a valid (yymmdd-conf-hhmmss) filename)"\
                 .format(format_time(), file['name'])
-            return False
+            # let try the other way
+
+            filename_extracted = re.match("(\d+)-(\d+)-(\S+)", file['name']).groups()
+            if filename_extracted is None:
+                print "{0} ! ({1}) can't be parsed as a valid (yymmdd-hhmmss-conf) filename)"\
+                    .format(format_time(), file['name'])
+                return False
 
         pprint.pprint(filename_extracted)
 
