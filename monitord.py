@@ -21,7 +21,8 @@ from stat import *              # interface to stat.h (get filesize, owner...)
 from math import log            # format_size()
 import pyinotify
 
-config = { 'free_bytes_limit' : 1024*1024*1024*5,
+config = { 'limit_free_bytes' : 1024*1024*1024*5,
+    'limit_size_bytes' : 1,
     'recursive' : False,
     'temp_path' : '/tmp',
     'watch_path' : './',
@@ -37,7 +38,16 @@ class Counter(object):
         self.count += 1
 
 class EventHandler(pyinotify.ProcessEvent):
-    def process_IN_CLOSE_WRITE(self,event):
+    def process_IN_MOVED_TO(self, event):
+        self.process(event)
+
+    def process_IN_CLOSE_WRITE(self, event):
+        self.process(event)
+
+    def process_default(self, event):
+        return
+
+    def process(self, event):
         #<Event dir=False mask=0x8 maskname=IN_CLOSE_WRITE name=q.qw11 path=/tmp/l pathname=/tmp/l/q.qw11 wd=4 >
         #sys.stdout.write(formatTime() + pprint.pformat(event) + '\n')
         stat = os.stat(event.pathname)
@@ -47,12 +57,18 @@ class EventHandler(pyinotify.ProcessEvent):
             'pathname' : event.pathname,
             'extension' : os.path.splitext(event.pathname)[1]
         }
+
+        print '{0} > filename({1}) filesize({2}) extension({3}) operation({4})'\
+                .format(format_time(), file['name'], format_size(file['size']), \
+                file['extension'], event.maskname)
+
         if not S_ISREG(stat.st_mode):
             return False
 
-        if file['size']<500*1024:
-            print '{0} ? File size lower than 500KiB: filename({1}) filesize({2}) extension({3})'\
-                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+        if file['size']<config['limit_size_bytes']:
+            print '{0} ? File size lower than ({1}): filename({2}) filesize({3}) extension({4})'\
+                .format(format_time(), config['limit_size_bytes'], file['name'], \
+                format_size(file['size']), file['extension'])
             return False
 
         if file['extension'] not in valid_extensions:
@@ -60,9 +76,9 @@ class EventHandler(pyinotify.ProcessEvent):
                 .format(format_time(), file['name'], format_size(file['size']), file['extension'])
             return False
 
-        ret = check_free_space([config['watch_path'], config['temp_path']], config['free_bytes_limit'])
+        ret = check_free_space([config['watch_path'], config['temp_path']], config['limit_free_bytes'])
         if isinstance(ret, basestring):
-            print '{0} ! ({1}) has less than {2} free'.format(format_time(), ret, format_size(config['free_bytes_limit']))
+            print '{0} ! ({1}) has less than {2} free'.format(format_time(), ret, format_size(config['limit_free_bytes']))
             return False
 
         print '{0} > filename({1}) filesize({2}) extension({3})'\
@@ -145,15 +161,18 @@ def on_loop(notifier, counter):
 def main(argv):
     def usage():
         print 'usage: ', argv[0], '[-h|--help]'
-        print '                 [-l|--limit]'
+        print '                 [-f|--limit-free]'
+        print '                 [-s|--limit-size]'
         print '                 [-r|--recursive]'
         print '                 [-t|--temp-path <path>]'
         print '                 -w|--watch-path <path>'
         print
         print 'Starts automatic SASS-C processes when new files are written'
         print
-        print ' -l, --limit              minimum free space in watch & temp directories in  bytes'
-        print '                          defaults to', format_size(config['free_bytes_limit'])
+        print ' -f, --limit-free         minimum free space in watch & temp directories in bytes'
+        print '                          defaults to', format_size(config['limit_free_bytes'])
+        print ' -s, --limit-size         minimum file size to react, in bytes'
+        print '                          defaults to', format_size(config['limit_size_bytes'])
         print ' -r, --recursive          descent into subdirectories'
         print '                          defaults to', str(config['recursive'])
         print ' -t, --temp-path <path>   temporary path used to process new file files'
@@ -162,8 +181,8 @@ def main(argv):
         print "                          defaults to '", config['watch_path'], "'"
 
     try:
-        opts, args = getopt.getopt(argv[1:], 'hl:rt:w:', ['help', 'limit=', 
-            'recursive', 'temp-path=', 'watch-path='])
+        opts, args = getopt.getopt(argv[1:], 'hf:s:rt:w:', ['help', 'limit-free=',
+            'limit-size=', 'recursive', 'temp-path=', 'watch-path='])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -171,8 +190,10 @@ def main(argv):
         if opt in ('-h', '--help'):
             usage()
             sys.exit()
-        elif opt in ('-l', '--limit'):
-            config['free_bytes_limit'] = float(arg)
+        elif opt in ('-f', '--limit-free'):
+            config['limit_free_bytes'] = float(arg)
+        elif opt in ('-s', '--limit-size'):
+            config['limit_size_bytes'] = float(arg)
         elif opt in ('-r', '--recursive'):
             config['recursive'] = True
         elif opt in ('-t', '--temp-path'):
@@ -183,19 +204,20 @@ def main(argv):
     config['self'] = argv[0]
 
     print '{0} > {1} init'.format(format_time(), config['self'])
-    print '{0} > options: limit({1})'.format(format_time(), format_size(config['free_bytes_limit']))
+    print '{0} > options: limit_free({1})'.format(format_time(), format_size(config['limit_free_bytes']))
+    print '{0} > options: limit_size({1})'.format(format_time(), format_size(config['limit_size_bytes']))
     print '{0} > options: recursive({1})'.format(format_time(), config['recursive'])
     print '{0} > options: temp_path({1}) free_bytes({2})'.format(format_time(), config['temp_path'], format_size(get_free_space_bytes(config['temp_path'])))
     print '{0} > options: watch_path({1}) free_bytes({2})'.format(format_time(), config['watch_path'], format_size(get_free_space_bytes(config['watch_path'])))
 
-    ret = check_free_space([config['watch_path'], config['temp_path']], config['free_bytes_limit'])
+    ret = check_free_space([config['watch_path'], config['temp_path']], config['limit_free_bytes'])
     if isinstance(ret, basestring):
-        print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['free_bytes_limit']))
+        print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['limit_free_bytes']))
         sys.exit(3)
-
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm, EventHandler())
-    wm.add_watch(config['watch_path'], pyinotify.IN_CLOSE_WRITE, rec=config['recursive'], auto_add=config['recursive'])
+    wm.add_watch(config['watch_path'], pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO,
+        rec=config['recursive'], auto_add=config['recursive'])
     on_loop_func = functools.partial(on_loop, counter=Counter())
     try:
         notifier.loop(daemonize=False, callback=on_loop_func,
