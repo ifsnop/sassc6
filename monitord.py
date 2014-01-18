@@ -3,7 +3,7 @@
 """ monitord.py - Starts automatic SASS-C processes when new files are written."""
 
 __author__ = "Diego Torres"
-__copyright__ = "Copyright (C) 2013 Diego Torres <diego dot torres at gmail dot com>"
+__copyright__ = "Copyright (C) 2014 Diego Torres <diego dot torres at gmail dot com>"
 
 # Requires Python >= 2.7
 
@@ -21,8 +21,9 @@ from stat import *              # interface to stat.h (get filesize, owner...)
 from math import log            # format_size()
 import pyinotify
 
-config = { 'limit_free_bytes' : 1024*1024*1024*5,
-    'limit_size_bytes' : 1,
+config = { 'min_free_bytes' : 1024*1024*1024*5,
+    'min_size_bytes' : 0,
+    'max_size_bytes' : 1024*1024*1024,
     'recursive' : False,
     'temp_path' : '/tmp',
     'watch_path' : './',
@@ -52,58 +53,68 @@ class EventHandler(pyinotify.ProcessEvent):
         #sys.stdout.write(formatTime() + pprint.pformat(event) + '\n')
         stat = os.stat(event.pathname)
         file = { 'size' : stat.st_size,
-            'name' : event.name,
+            'nameext' : event.name,
             'path' : event.path,
-            'pathname' : event.pathname,
-            'extension' : os.path.splitext(event.pathname)[1]
+            'pathnameext' : event.pathname,
+            'name' : os.path.splitext(event.name)[0],
+            'ext' : os.path.splitext(event.pathname)[1]
         }
 
         print '{0} > filename({1}) filesize({2}) extension({3}) operation({4})'\
-                .format(format_time(), file['name'], format_size(file['size']), \
-                file['extension'], event.maskname)
+                .format(format_time(), file['nameext'], format_size(file['size']), \
+                file['ext'], event.maskname)
 
         if not S_ISREG(stat.st_mode):
             return False
 
-        if file['size']<config['limit_size_bytes']:
+        if file['size']<config['min_size_bytes']:
             print '{0} ? File size lower than ({1}): filename({2}) filesize({3}) extension({4})'\
-                .format(format_time(), config['limit_size_bytes'], file['name'], \
-                format_size(file['size']), file['extension'])
+                .format(format_time(), config['min_size_bytes'], file['nameext'], \
+                format_size(file['size']), file['ext'])
             return False
 
-        if file['extension'] not in valid_extensions:
+        if file['size']>config['max_size_bytes']:
+            print '{0} ? File size greater than ({1}): filename({2}) filesize({3}) extension({4})'\
+                .format(format_time(), config['max_size_bytes'], file['nameext'], \
+                format_size(file['size']), file['ext'])
+            return False
+
+        if file['ext'] not in valid_extensions:
             print '{0} ? Not recognized extension: filename({1}) filesize({2}) extension({3})'\
-                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+                .format(format_time(), file['nameext'], format_size(file['size']), file['ext'])
             return False
 
-        ret = check_free_space([config['watch_path'], config['temp_path']], config['limit_free_bytes'])
+        ret = check_free_space([config['watch_path'], config['temp_path']], config['min_free_bytes'])
         if isinstance(ret, basestring):
-            print '{0} ! ({1}) has less than {2} free'.format(format_time(), ret, format_size(config['limit_free_bytes']))
+            print '{0} ! ({1}) has less than {2} free'.format(format_time(), ret, format_size(config['min_free_bytes']))
             return False
 
         print '{0} > filename({1}) filesize({2}) extension({3})'\
-                .format(format_time(), file['name'], format_size(file['size']), file['extension'])
+                .format(format_time(), file['nameext'], format_size(file['size']), file['ext'])
 
-        if file['extension'] == '.bz2':
-            print '{0} + ({1}) is a bz2 compressed file'.format(format_time(), file['name'])
-        elif file['extension'] == '.gps':
-            print '{0} + ({1}) is an operational recording file'.format(format_time(), file['name'])
-        elif file['extension'] == '.sgps':
-            print '{0} + ({1}) is a mode s recording file'.format(format_time(), file['name'])
+        if file['ext'] == '.bz2':
+            print '{0} + ({1}) is a bz2 compressed file'.format(format_time(), file['nameext'])
+        elif file['ext'] == '.gps':
+            print '{0} + ({1}) is an operational recording file'.format(format_time(), file['nameext'])
+        elif file['ext'] == '.sgps':
+            print '{0} + ({1}) is a mode s recording file'.format(format_time(), file['nameext'])
 
         #p = re.compile(r"re.match("(\d+)-(\S+)-(\d+)", "213-cen-890").groups()", re.IGNORECASE)
-        filename_extracted = re.match("(\d+)-(\S+)-(\d+)", file['name']).groups()
-        if filename_extracted is None:
-            print "{0} ! ({1}) can't be parsed as a valid (yymmdd-conf-hhmmss) filename)"\
-                .format(format_time(), file['name'])
-            # let try the other way
+        #filename_extracted = re.match("(\d+)-(\S+)-(\d+)", file['name']).groups()
 
-            filename_extracted = re.match("(\d+)-(\d+)-(\S+)", file['name']).groups()
-            if filename_extracted is None:
-                print "{0} ! ({1}) can't be parsed as a valid (yymmdd-hhmmss-conf) filename)"\
-                    .format(format_time(), file['name'])
+        match = re.match("(\d+)-(\S+)-(\d+)", file['name'])
+        if match is None:
+            print "{0} ! ({1}) can't be parsed as a valid (yymmdd-conf-hhmmss) filename"\
+                .format(format_time(), file['nameext'])
+
+            # let try the other way
+            match = re.match("(\d+)-(\d+)-(\S+)", file['name'])
+            if match is None:
+                print "{0} ! ({1}) can't be parsed as a valid (yymmdd-hhmmss-conf) filename"\
+                    .format(format_time(), file['nameext'])
                 return False
 
+        filename_extracted = match.groups()
         pprint.pprint(filename_extracted)
 
         return True
@@ -117,17 +128,15 @@ def format_time():
 
 def format_size(num):
     """Human friendly file size"""
-    unit_list = zip(['bytes', 'kB', 'MB', 'GB', 'TB', 'PB'], [0, 0, 1, 2, 2, 2])
+    unit_list = zip(['B', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi'], [0, 0, 1, 2, 2, 2])
     if num > 1:
         exponent = min(int(log(num, 1024)), len(unit_list) - 1)
         quotient = float(num) / 1024**exponent
         unit, num_decimals = unit_list[exponent]
-        format_string = '{:.%sf} {}' % (num_decimals)
+        format_string = '{:.%sf}{}' % (num_decimals)
         return format_string.format(quotient, unit)
-    if num == 0:
-        return '0 bytes'
-    if num == 1:
-        return '1 byte'
+    if num == 0 or num == 1:
+        return str(num) + 'B'
 
 def get_free_space_bytes(folder = './'):
     """ Return folder/drive free space (in bytes) """
@@ -156,33 +165,41 @@ def on_loop(notifier, counter):
     #else:
     #    sys.stdout.write("Loop %d\n" % counter.count)
     #    counter.plusone()
-    time.sleep(1)
+    time.sleep(2)
+
+def sha1_file(filename):
+    import hashlib
+    with open(filename, 'rb') as f:
+        return hashlib.sha1(f.read()).hexdigest()
 
 def main(argv):
     def usage():
         print 'usage: ', argv[0], '[-h|--help]'
-        print '                 [-f|--limit-free]'
-        print '                 [-s|--limit-size]'
+        print '                 [-f|--min-free]'
+        print '                 [-s|--min-size]'
+        print '                 [-m|--max-size]'
         print '                 [-r|--recursive]'
         print '                 [-t|--temp-path <path>]'
         print '                 -w|--watch-path <path>'
         print
         print 'Starts automatic SASS-C processes when new files are written'
         print
-        print ' -f, --limit-free         minimum free space in watch & temp directories in bytes'
-        print '                          defaults to', format_size(config['limit_free_bytes'])
-        print ' -s, --limit-size         minimum file size to react, in bytes'
-        print '                          defaults to', format_size(config['limit_size_bytes'])
+        print ' -f, --min-free           minimum free space in watch & temp directories in bytes'
+        print '                          defaults to', format_size(config['min_free_bytes'])
+        print ' -s, --min-size           minimum file size to react, in bytes'
+        print '                          defaults to', format_size(config['min_size_bytes'])
+        print ' -m, --max-size           maximum file size to react, in bytes'
+        print '                          defaults to', format_size(config['max_size_bytes'])
         print ' -r, --recursive          descent into subdirectories'
         print '                          defaults to', str(config['recursive'])
-        print ' -t, --temp-path <path>   temporary path used to process new file files'
-        print "                          defaults to '", config['temp_path'], "'"
+        print ' -t, --temp-path <path>   temporary path used to process new files'
+        print "                          defaults to '" + config['temp_path'] + "'"
         print ' -w, --watch-path <path>  where to look for new files'
-        print "                          defaults to '", config['watch_path'], "'"
+        print "                          defaults to '" + config['watch_path'] + "'"
 
     try:
-        opts, args = getopt.getopt(argv[1:], 'hf:s:rt:w:', ['help', 'limit-free=',
-            'limit-size=', 'recursive', 'temp-path=', 'watch-path='])
+        opts, args = getopt.getopt(argv[1:], 'hf:s:m:rt:w:', ['help', 'min-free=',
+            'min-size=', 'max-size=', 'recursive', 'temp-path=', 'watch-path='])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -190,10 +207,12 @@ def main(argv):
         if opt in ('-h', '--help'):
             usage()
             sys.exit()
-        elif opt in ('-f', '--limit-free'):
-            config['limit_free_bytes'] = float(arg)
-        elif opt in ('-s', '--limit-size'):
-            config['limit_size_bytes'] = float(arg)
+        elif opt in ('-f', '--min-free'):
+            config['min_free_bytes'] = float(arg)
+        elif opt in ('-s', '--min-size'):
+            config['min_size_bytes'] = float(arg)
+        elif opt in ('-m', '--max-size'):
+            config['max_size_bytes'] = float(arg)
         elif opt in ('-r', '--recursive'):
             config['recursive'] = True
         elif opt in ('-t', '--temp-path'):
@@ -204,15 +223,16 @@ def main(argv):
     config['self'] = argv[0]
 
     print '{0} > {1} init'.format(format_time(), config['self'])
-    print '{0} > options: limit_free({1})'.format(format_time(), format_size(config['limit_free_bytes']))
-    print '{0} > options: limit_size({1})'.format(format_time(), format_size(config['limit_size_bytes']))
+    print '{0} > options: min_free({1})'.format(format_time(), format_size(config['min_free_bytes']))
+    print '{0} > options: min_size({1})'.format(format_time(), format_size(config['min_size_bytes']))
+    print '{0} > options: max_size({1})'.format(format_time(), format_size(config['max_size_bytes']))
     print '{0} > options: recursive({1})'.format(format_time(), config['recursive'])
     print '{0} > options: temp_path({1}) free_bytes({2})'.format(format_time(), config['temp_path'], format_size(get_free_space_bytes(config['temp_path'])))
     print '{0} > options: watch_path({1}) free_bytes({2})'.format(format_time(), config['watch_path'], format_size(get_free_space_bytes(config['watch_path'])))
 
-    ret = check_free_space([config['watch_path'], config['temp_path']], config['limit_free_bytes'])
+    ret = check_free_space([config['watch_path'], config['temp_path']], config['min_free_bytes'])
     if isinstance(ret, basestring):
-        print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['limit_free_bytes']))
+        print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['min_free_bytes']))
         sys.exit(3)
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm, EventHandler())
