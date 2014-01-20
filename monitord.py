@@ -21,7 +21,8 @@ from stat import *              # interface to stat.h (get filesize, owner...)
 from math import log            # format_size()
 import pyinotify
 
-config = { 'min_free_bytes' : 1024*1024*1024*5,
+config = { 'db_file' : None,
+    'min_free_bytes' : 1024*1024*1024*5,
     'min_size_bytes' : 0,
     'max_size_bytes' : 1024*1024*1024,
     'recursive' : False,
@@ -32,18 +33,23 @@ config = { 'min_free_bytes' : 1024*1024*1024*5,
 
 valid_extensions = [ '.gps', '.sgps', '.bz2', '.ast', '.sast' ]
 
-class Counter(object):
-    def __init__(self):
-        self.count = 0
-    def plusone(self):
-        self.count += 1
-
 class EventHandler(pyinotify.ProcessEvent):
+    def process_IN_DELETE(self, event):
+        self.process(event)
+
     def process_IN_MOVED_TO(self, event):
+        self.process(event)
+
+    def process_IN_MOVED_FROM(self, event):
         self.process(event)
 
     def process_IN_CLOSE_WRITE(self, event):
         self.process(event)
+
+    def process_IN_Q_OVERFLOW(self, event):
+        print '{0} ! error overflow'\
+            .format(format_time())
+        return
 
     def process_default(self, event):
         return
@@ -57,30 +63,36 @@ class EventHandler(pyinotify.ProcessEvent):
             'path' : event.path,
             'pathnameext' : event.pathname,
             'name' : os.path.splitext(event.name)[0],
-            'ext' : os.path.splitext(event.pathname)[1]
+            'ext' : os.path.splitext(event.pathname)[1],
+            'event' : event.maskname
         }
 
         print '{0} > filename({1}) filesize({2}) extension({3}) operation({4})'\
                 .format(format_time(), file['nameext'], format_size(file['size']), \
-                file['ext'], event.maskname)
+                file['ext'], file['event'])
+
+        print '{0} > filename({1}) sha1({2})'\
+                .format(format_time(), file['nameext'], sha1_file(file['pathnameext']))
 
         if not S_ISREG(stat.st_mode):
             return False
 
         if file['size']<config['min_size_bytes']:
-            print '{0} ? File size lower than ({1}): filename({2}) filesize({3}) extension({4})'\
+            print '{0} ? file size lower than ({1}): filename({2}) filesize({3}) extension({4})'\
                 .format(format_time(), config['min_size_bytes'], file['nameext'], \
                 format_size(file['size']), file['ext'])
             return False
 
         if file['size']>config['max_size_bytes']:
-            print '{0} ? File size greater than ({1}): filename({2}) filesize({3}) extension({4})'\
+            print '{0} ? file size greater than ({1}): filename({2}) filesize({3}) extension({4})'\
                 .format(format_time(), config['max_size_bytes'], file['nameext'], \
                 format_size(file['size']), file['ext'])
             return False
 
+        update_database(file['pathnameext'], file['event'])
+
         if file['ext'] not in valid_extensions:
-            print '{0} ? Not recognized extension: filename({1}) filesize({2}) extension({3})'\
+            print '{0} ? not recognized extension: filename({1}) filesize({2}) extension({3})'\
                 .format(format_time(), file['nameext'], format_size(file['size']), file['ext'])
             return False
 
@@ -98,9 +110,8 @@ class EventHandler(pyinotify.ProcessEvent):
             print '{0} + ({1}) is an operational recording file'.format(format_time(), file['nameext'])
         elif file['ext'] == '.sgps':
             print '{0} + ({1}) is a mode s recording file'.format(format_time(), file['nameext'])
-
-        #p = re.compile(r"re.match("(\d+)-(\S+)-(\d+)", "213-cen-890").groups()", re.IGNORECASE)
-        #filename_extracted = re.match("(\d+)-(\S+)-(\d+)", file['name']).groups()
+        else:
+            print '{0} + ({1}) is allowed but not action defined'.format(format_time(), file['nameext'])
 
         match = re.match("(\d+)-(\S+)-(\d+)", file['name'])
         if match is None:
@@ -155,22 +166,15 @@ def check_free_space(paths, free_bytes_limit):
             return path
     return True
 
-def on_loop(notifier, counter):
-    """ Dummy function called after each event loop """
-    #if counter.count > 49:
-    #    # Loops 49 times then exits.
-    #    sys.stdout.write("Exit\n")
-    #    notifier.stop()
-    #    sys.exit(0)
-    #else:
-    #    sys.stdout.write("Loop %d\n" % counter.count)
-    #    counter.plusone()
-    time.sleep(2)
-
 def sha1_file(filename):
     import hashlib
     with open(filename, 'rb') as f:
         return hashlib.sha1(f.read()).hexdigest()
+
+def update_database(file, action):
+
+    print '{0} + file ({1}) with action ({2})'.format(format_time(), file, action)
+
 
 def main(argv):
     def usage():
@@ -184,6 +188,8 @@ def main(argv):
         print
         print 'Starts automatic SASS-C processes when new files are written'
         print
+        print ' -d, --db-file            sqlite path to store sha1 signatures'
+        print '                          default to \'' + str(config['db_file']) + '\''
         print ' -f, --min-free           minimum free space in watch & temp directories in bytes'
         print '                          defaults to', format_size(config['min_free_bytes'])
         print ' -s, --min-size           minimum file size to react, in bytes'
@@ -193,13 +199,14 @@ def main(argv):
         print ' -r, --recursive          descent into subdirectories'
         print '                          defaults to', str(config['recursive'])
         print ' -t, --temp-path <path>   temporary path used to process new files'
-        print "                          defaults to '" + config['temp_path'] + "'"
+        print '                          defaults to \'' + config['temp_path'] + '\''
         print ' -w, --watch-path <path>  where to look for new files'
-        print "                          defaults to '" + config['watch_path'] + "'"
+        print '                          defaults to \'' + config['watch_path'] + '\''
 
     try:
-        opts, args = getopt.getopt(argv[1:], 'hf:s:m:rt:w:', ['help', 'min-free=',
-            'min-size=', 'max-size=', 'recursive', 'temp-path=', 'watch-path='])
+        opts, args = getopt.getopt(argv[1:], 'hd:f:s:m:rt:w:', ['help',
+            'db-file=', 'min-free=', 'min-size=', 'max-size=', 'recursive',
+            'temp-path=', 'watch-path='])
     except getopt.GetoptError:
         usage()
         sys.exit(2)
@@ -207,6 +214,8 @@ def main(argv):
         if opt in ('-h', '--help'):
             usage()
             sys.exit()
+        elif opt in ('-d', '--db-file'):
+            config['db_file'] = arg
         elif opt in ('-f', '--min-free'):
             config['min_free_bytes'] = float(arg)
         elif opt in ('-s', '--min-size'):
@@ -223,12 +232,13 @@ def main(argv):
     config['self'] = argv[0]
 
     print '{0} > {1} init'.format(format_time(), config['self'])
-    print '{0} > options: min_free({1})'.format(format_time(), format_size(config['min_free_bytes']))
-    print '{0} > options: min_size({1})'.format(format_time(), format_size(config['min_size_bytes']))
-    print '{0} > options: max_size({1})'.format(format_time(), format_size(config['max_size_bytes']))
+    print '{0} > options: db-file({1})'.format(format_time(), config['db_file'])
+    print '{0} > options: min-free({1})'.format(format_time(), format_size(config['min_free_bytes']))
+    print '{0} > options: min-size({1})'.format(format_time(), format_size(config['min_size_bytes']))
+    print '{0} > options: max-size({1})'.format(format_time(), format_size(config['max_size_bytes']))
     print '{0} > options: recursive({1})'.format(format_time(), config['recursive'])
-    print '{0} > options: temp_path({1}) free_bytes({2})'.format(format_time(), config['temp_path'], format_size(get_free_space_bytes(config['temp_path'])))
-    print '{0} > options: watch_path({1}) free_bytes({2})'.format(format_time(), config['watch_path'], format_size(get_free_space_bytes(config['watch_path'])))
+    print '{0} > options: temp-path({1}) free_bytes({2})'.format(format_time(), config['temp_path'], format_size(get_free_space_bytes(config['temp_path'])))
+    print '{0} > options: watch-path({1}) free_bytes({2})'.format(format_time(), config['watch_path'], format_size(get_free_space_bytes(config['watch_path'])))
 
     ret = check_free_space([config['watch_path'], config['temp_path']], config['min_free_bytes'])
     if isinstance(ret, basestring):
@@ -236,12 +246,18 @@ def main(argv):
         sys.exit(3)
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm, EventHandler())
-    wm.add_watch(config['watch_path'], pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO,
+    wm.add_watch(config['watch_path'], 
+        pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO | pyinotify.IN_MOVED_FROM |
+        pyinotify.IN_DELETE | pyinotify.IN_Q_OVERFLOW,
         rec=config['recursive'], auto_add=config['recursive'])
-    on_loop_func = functools.partial(on_loop, counter=Counter())
+    #on_loop_func = functools.partial(on_loop, counter=Counter())
     try:
-        notifier.loop(daemonize=False, callback=on_loop_func,
+        # disabled callback counter from example, not needed
+        #notifier.loop(daemonize=False, callback=on_loop_func,
+        #    pid_file="/var/run/{config['self']}", stdout='/tmp/stdout.txt')
+        notifier.loop(daemonize=False, callback=None,
             pid_file="/var/run/{config['self']}", stdout='/tmp/stdout.txt')
+
     except pyinotify.NotifierError, err:
         print >> sys.stderr, err
 
@@ -271,4 +287,24 @@ http://docs.python.org/library/subprocess.html#replacing-older-functions-with-th
 
 For quick/dirty/one time scripts, os.system is enough, though.
 
+"""
+"""
+class Counter(object):
+    def __init__(self):
+        self.count = 0
+    def plusone(self):
+        self.count += 1
+"""
+"""
+def on_loop(notifier, counter):
+    # Dummy function called after each event loop
+    if counter.count > 49:
+        # Loops 49 times then exits.
+        sys.stdout.write("Exit\n")
+        notifier.stop()
+        sys.exit(0)
+    else:
+    sys.stdout.write("Loop %d\n" % counter.count)
+    counter.plusone()
+    time.sleep(2)
 """
