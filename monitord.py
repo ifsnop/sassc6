@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 """ monitord.py - Starts automatic SASS-C processes when new files are written."""
 
@@ -8,7 +9,8 @@ __copyright__ = "Copyright (C) 2014 Diego Torres <diego dot torres at gmail dot 
 # Requires Python >= 2.7
 
 import functools
-import sys, os
+import sys
+import os
 import statvfs                  # free space on partition
 import time
 import pprint
@@ -17,8 +19,10 @@ import sys, getopt              # command line arguments
 import ctypes
 import platform                 # get_free_space_bytes()
 import re                       # regexp
-from stat import *              # interface to stat.h (get filesize, owner...)
+import stat                     # interface to stat.h (get filesize, owner...)
+import errno                    # to fail stat with proper codes
 from math import log            # format_size()
+import sqlite3
 import pyinotify
 
 config = { 'db_file' : None,
@@ -57,25 +61,41 @@ class EventHandler(pyinotify.ProcessEvent):
     def process(self, event):
         #<Event dir=False mask=0x8 maskname=IN_CLOSE_WRITE name=q.qw11 path=/tmp/l pathname=/tmp/l/q.qw11 wd=4 >
         #sys.stdout.write(formatTime() + pprint.pformat(event) + '\n')
-        stat = os.stat(event.pathname)
-        file = { 'size' : stat.st_size,
-            'nameext' : event.name,
-            'path' : event.path,
-            'pathnameext' : event.pathname,
-            'name' : os.path.splitext(event.name)[0],
-            'ext' : os.path.splitext(event.pathname)[1],
-            'event' : event.maskname
+
+        file = {'nameext' : event.name,
+                'path' : os.path.normpath(event.path),
+                'pathnameext' : os.path.normpath(event.pathname),
+                'name' : os.path.splitext(event.name)[0],
+                'ext' : os.path.splitext(event.pathname)[1],
+                'size' : -1,
+                'event' : event.maskname
         }
+
+        try:
+            filestat = os.stat(event.pathname)
+            file['size'] = filestat.st_size
+        except OSError as e:
+            if e.errno != errno.ENOENT: # ignore file not found
+                raise
+            else:
+                filestat = None
 
         print '{0} > filename({1}) filesize({2}) extension({3}) operation({4})'\
                 .format(format_time(), file['nameext'], format_size(file['size']), \
                 file['ext'], file['event'])
 
+        update_database(file)
+
+        if filestat is None:
+            return False
+
+        if not stat.S_ISREG(filestat.st_mode):
+            return False
+
+        # return True
+
         print '{0} > filename({1}) sha1({2})'\
                 .format(format_time(), file['nameext'], sha1_file(file['pathnameext']))
-
-        if not S_ISREG(stat.st_mode):
-            return False
 
         if file['size']<config['min_size_bytes']:
             print '{0} ? file size lower than ({1}): filename({2}) filesize({3}) extension({4})'\
@@ -88,8 +108,6 @@ class EventHandler(pyinotify.ProcessEvent):
                 .format(format_time(), config['max_size_bytes'], file['nameext'], \
                 format_size(file['size']), file['ext'])
             return False
-
-        update_database(file['pathnameext'], file['event'])
 
         if file['ext'] not in valid_extensions:
             print '{0} ? not recognized extension: filename({1}) filesize({2}) extension({3})'\
@@ -171,10 +189,37 @@ def sha1_file(filename):
     with open(filename, 'rb') as f:
         return hashlib.sha1(f.read()).hexdigest()
 
-def update_database(file, action):
+def update_database(file):
+    if config['db_file'] is None:
+        return
 
-    print '{0} + file ({1}) with action ({2})'.format(format_time(), file, action)
+    # print '{0} + file ({1}) with action ({2})'.format(format_time(), file['nameext'], file['event'])
+    upathnameext = unicode(file['pathnameext'], sys.getfilesystemencoding())
+    conn = sqlite3.connect(config['db_file'], detect_types=sqlite3.PARSE_DECLTYPES)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    if file['event'] == 'IN_CLOSE_WRITE':
+        c.execute('''SELECT pathnameext, size, sha1, ts_create, ts_update, status
+            FROM files WHERE pathnameext=?''', [upathnameext])
+        row = c.fetchone()
+        if row is None:
+            # print "insert new file"
+            c.execute('''INSERT INTO files (pathnameext, size, ts_create, ts_update, status) VALUES
+                (?,?,?,?,?)''', [upathnameext, file['size'], datetime.datetime.now(),
+                datetime.datetime.now(), 'updated'])
+        else:
+            # print "update old file"
+            c.execute('''UPDATE files SET status=?, ts_update=?
+                WHERE pathnameext=?''', ['updated', datetime.datetime.now(), upathnameext])
 
+    elif file['event'] == 'IN_DELETE':
+            # print "delete file"
+            c.execute('''DELETE FROM files WHERE pathnameext=?''', [upathnameext])
+
+#                (pathnameext text, size integer, sha1 text, ts_create timestamp,
+#                ts_update timestamp, status text, UNIQUE (pathnameext))''')
+    conn.commit()
+    conn.close()
 
 def main(argv):
     def usage():
@@ -244,9 +289,21 @@ def main(argv):
     if isinstance(ret, basestring):
         print '{0} ! ({1}) has less than {2} bytes'.format(format_time(), ret, format_size(config['min_free_bytes']))
         sys.exit(3)
+
+    if config['db_file'] is not None:
+        conn = sqlite3.connect(config['db_file'], detect_types=sqlite3.PARSE_DECLTYPES)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='files'")
+        if c.fetchone()[0] != 1:
+            c.execute('''CREATE TABLE files
+                (pathnameext text, size integer, sha1 text, ts_create timestamp,
+                ts_update timestamp, status text, UNIQUE (pathnameext))''')
+            conn.commit()
+        conn.close()
+
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm, EventHandler())
-    wm.add_watch(config['watch_path'], 
+    wm.add_watch(config['watch_path'],
         pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO | pyinotify.IN_MOVED_FROM |
         pyinotify.IN_DELETE | pyinotify.IN_Q_OVERFLOW,
         rec=config['recursive'], auto_add=config['recursive'])
