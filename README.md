@@ -9,9 +9,12 @@ monitord.sh       init.d script that launches monitord.py at system startup.
 INSTALL
 ======
 
+Just add monitord to init.d scripts:
+
+~~~
 # ln -s /software/sassc/scripts/sassc6/monitord.sh /etc/init.d/monitord.sh
 # chkconfig -add monitord.sh
-
+~~~
 
 FAQ
 ======
