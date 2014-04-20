@@ -4,6 +4,13 @@ SASSC6
 General utilities and scripts to run headless evaluations on SASS-C.
 
 monitord.py       Monitors incoming ftp directory and launches new evaluations.
+monitord.sh       init.d script that launches monitord.py at system startup.
+
+INSTALL
+======
+
+# ln -s /software/sassc/scripts/sassc6/monitord.sh /etc/init.d/monitord.sh
+# chkconfig -add monitord.sh
 
 
 FAQ

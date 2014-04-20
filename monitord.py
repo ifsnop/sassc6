@@ -6,7 +6,7 @@
 __author__ = "Diego Torres"
 __copyright__ = "Copyright (C) 2014 Diego Torres <diego dot torres at gmail dot com>"
 
-# Requires Python >= 2.7
+# Requires Python >= 2.6
 
 import functools
 import sys
@@ -24,6 +24,7 @@ import errno                    # to fail stat with proper codes
 from math import log            # format_size()
 import sqlite3
 import pyinotify
+from subprocess import Popen
 
 config = { 'db_file' : None,
     'min_free_bytes' : 1024*1024*1024*5,
@@ -121,17 +122,7 @@ class EventHandler(pyinotify.ProcessEvent):
 
         print '{0} > filename({1}) filesize({2}) extension({3})'\
                 .format(format_time(), file['nameext'], format_size(file['size']), file['ext'])
-
-        if file['ext'] == '.bz2':
-            print '{0} + ({1}) is a bz2 compressed file'.format(format_time(), file['nameext'])
-        elif file['ext'] == '.gps':
-            print '{0} + ({1}) is an operational recording file'.format(format_time(), file['nameext'])
-        elif file['ext'] == '.sgps':
-            print '{0} + ({1}) is a mode s recording file'.format(format_time(), file['nameext'])
-        else:
-            print '{0} + ({1}) is allowed but not action defined'.format(format_time(), file['nameext'])
-
-        match = re.match("(\d+)-(\S+)-(\d+)", file['name'])
+        match = re.match("(\d\d)(\d\d)(\d\d)-(\S+)-(\d+)", file['name'])
         if match is None:
             print "{0} ! ({1}) can't be parsed as a valid (yymmdd-conf-hhmmss) filename"\
                 .format(format_time(), file['nameext'])
@@ -144,7 +135,32 @@ class EventHandler(pyinotify.ProcessEvent):
                 return False
 
         filename_extracted = match.groups()
-        pprint.pprint(filename_extracted)
+        #pprint.pprint(filename_extracted)
+
+        if file['ext'] == '.bz2':
+            print '{0} + ({1}) is a bz2 compressed file'.format(format_time(), file['nameext'])
+        elif file['ext'] == '.gps':
+            print '{0} + ({1}) is an operational timestamped recording file'.format(format_time(), file['nameext'])
+        elif file['ext'] == '.sgps':
+            print '{0} + ({1}) is a mode s timestamped recording file'.format(format_time(), file['nameext'])
+        elif file['ext'] == '.ast':
+            print '{0} + ({1}) is an operational recording file, executing'.format(format_time(), file['nameext'])
+            #/software/sassc/scripts/sassc6/evcont2.sh <recording_file> <YY> <MM> <DD> <HHMMSS> <CFG1> <CFG2..>
+            execstr = '/bin/sh -c "/software/sassc/scripts/sassc6/evcont2.sh {0} {1} {2} {3} {4} {5}"'\
+                .format(
+                file['nameext'],
+                filename_extracted[0], #YY
+                filename_extracted[1], #MM
+                filename_extracted[2], #DD,
+                filename_extracted[4], #HHMMSS
+                filename_extracted[3]) #CFG
+
+            print '{0} + executing({1})'.format(format_time(), execstr)
+            spawnDaemon(execstr)
+        else:
+            print '{0} + ({1}) has been detected but not action defined'.format(format_time(), file['nameext'])
+
+        sys.stdout.flush()
 
         return True
 
@@ -220,6 +236,40 @@ def update_database(file):
 #                ts_update timestamp, status text, UNIQUE (pathnameext))''')
     conn.commit()
     conn.close()
+
+def spawnDaemon(func):
+    # do the UNIX double-fork magic, see Stevens' "Advanced 
+    # Programming in the UNIX Environment" for details (ISBN 0201563177)
+    try:
+        pid = os.fork()
+        if pid > 0:
+            # parent process, return and keep running
+            return
+    except OSError, e:
+        print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
+        sys.exit(1)
+
+    os.setsid()
+
+    # do second fork
+    try:
+        pid = os.fork()
+        if pid > 0:
+            # exit from second parent
+            sys.exit(0)
+    except OSError, e:
+        print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
+        sys.exit(1)
+
+    print "Executing >{0}<".format(func)
+
+    # do stuff
+    stats = Popen(func, shell=True).communicate()[0]
+    pprint.pprint(stats)
+    #, stdout=open('/dev/null'), stderr=open('/dev/null')).communicate()[0]
+
+    # all done
+    os._exit(os.EX_OK)
 
 def main(argv):
     def usage():
@@ -300,6 +350,9 @@ def main(argv):
                 ts_update timestamp, status text, UNIQUE (pathnameext))''')
             conn.commit()
         conn.close()
+
+    sys.stdout.flush()
+
 
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm, EventHandler())
