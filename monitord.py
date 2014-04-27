@@ -24,7 +24,7 @@ import errno                    # to fail stat with proper codes
 from math import log            # format_size()
 import sqlite3
 import pyinotify
-from subprocess import Popen
+import subprocess
 
 config = { 'db_file' : None,
     'min_free_bytes' : 1024*1024*1024*5,
@@ -146,14 +146,29 @@ class EventHandler(pyinotify.ProcessEvent):
         elif file['ext'] == '.ast':
             print '{0} + ({1}) is an operational recording file, executing'.format(format_time(), file['nameext'])
             #/software/sassc/scripts/sassc6/evcont2.sh <recording_file> <YY> <MM> <DD> <HHMMSS> <CFG1> <CFG2..>
-            execstr = '/bin/sh -c "/software/sassc/scripts/sassc6/evcont2.sh {0} {1} {2} {3} {4} {5}"'\
+            execstr = '/bin/su - eval /bin/sh -c "/software/sassc/scripts/sassc6/evcont2.sh {0} {1} {2} {3} {4} {5} > '\
+                ' /home/eval/pass/logs/{6}{7}/{8}{9}{10}-{11}-{12}.log 2>&1"'\
                 .format(
-                file['nameext'],
-                filename_extracted[0], #YY
-                filename_extracted[1], #MM
-                filename_extracted[2], #DD,
-                filename_extracted[4], #HHMMSS
-                filename_extracted[3]) #CFG
+                file['nameext'],       #        0
+                filename_extracted[0], #YY      1
+                filename_extracted[1], #MM      2
+                filename_extracted[2], #DD      3
+                filename_extracted[4], #HHMMSS  4
+                filename_extracted[3], #CFG     5
+                filename_extracted[0], #YY      6
+                filename_extracted[1], #MM      7
+                filename_extracted[0], #YY      8
+                filename_extracted[1], #MM      9
+                filename_extracted[2], #DD      10
+                filename_extracted[3], #CFG     11
+                filename_extracted[4], #HHMMSS  12
+                )
+            # ensure that destination dirs exists, by creating them
+            for dest in ["logs", "summaries"]:
+                path = '/home/eval/pass/{0}/{1}{2}'.format(dest, filename_extracted[0], filename_extracted[1])
+                devnull = open(os.devnull, 'wb')
+                subprocess.call(["/bin/mkdir", "-p", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
+                subprocess.call(["/bin/chown", "-R", "eval.eval", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
 
             print '{0} + executing({1})'.format(format_time(), execstr)
             spawnDaemon(execstr)
@@ -240,36 +255,45 @@ def update_database(file):
 def spawnDaemon(func):
     # do the UNIX double-fork magic, see Stevens' "Advanced 
     # Programming in the UNIX Environment" for details (ISBN 0201563177)
-    try:
-        pid = os.fork()
-        if pid > 0:
-            # parent process, return and keep running
-            return
-    except OSError, e:
-        print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
-        sys.exit(1)
-
-    os.setsid()
+#    try:
+#        pid = os.fork()
+#        if pid > 0:
+#            # parent process, return and keep running
+#            return
+#    except OSError, e:
+#        print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
+#        sys.exit(1)
+#
+#    os.setsid()
 
     # do second fork
-    try:
-        pid = os.fork()
-        if pid > 0:
-            # exit from second parent
-            sys.exit(0)
-    except OSError, e:
-        print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
-        sys.exit(1)
-
+#    try:
+#        pid = os.fork()
+#        if pid > 0:
+#            # exit from second parent
+#            sys.exit(0)
+#    except OSError, e:
+#        print >>sys.stderr, "fork #2 failed: %d (%s)" % (e.errno, e.strerror) 
+#        sys.exit(1)
+#
     print "Executing >{0}<".format(func)
+    sys.stdout.flush()
 
     # do stuff
-    stats = Popen(func, shell=True).communicate()[0]
-    pprint.pprint(stats)
+    #stats = subprocess.Popen(func, shell=True).communicate()[0]
+    devnull = open(os.devnull, 'wb')
+    subprocess.Popen(func, stdin=None, stdout=devnull, stderr=devnull, shell=True, close_fds=True)
+    #.communicate(input=None)
+    #stats.wait()
+    #pprint.pprint(stats)
     #, stdout=open('/dev/null'), stderr=open('/dev/null')).communicate()[0]
-
     # all done
-    os._exit(os.EX_OK)
+#    os._exit(os.EX_OK)
+
+    print "Executed >{0}<".format(func)
+    sys.stdout.flush()
+
+    return
 
 def main(argv):
     def usage():
@@ -352,7 +376,6 @@ def main(argv):
         conn.close()
 
     sys.stdout.flush()
-
 
     wm = pyinotify.WatchManager()
     notifier = pyinotify.Notifier(wm, EventHandler())

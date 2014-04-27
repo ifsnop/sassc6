@@ -110,11 +110,12 @@ fi
 
 report_pid start
 
-if [ "x$RASSP_HOME" == "x" ] ; then
+if [[ -z $RASSP_HOME ]] ; then
     . $HOME/.bashrc
-    if [ "x$RASSP_HOME" == "x" ] ; then
-	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) no se han encontrado variables de entorno. abortando"
-	exit
+
+    if [[ -z $RASSP_HOME ]] ; then
+        echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) no se han encontrado variables de entorno. abortando"
+        exit
     fi
 else 
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) RASSP_HOME: >${RASSP_HOME}<"
@@ -265,7 +266,7 @@ while [ "$#" -gt 5 ]; do
     if [ -f ${RASS_DIR}/ae_${RADARSET}.eva/Retrieve.sum ] && [ $processlog_size -lt 5000000 ]; then
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) copiando los resultados al directorio final"
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cp ${RASS_DIR}/ae_${RADARSET}.eva/Retrieve.sum /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum"
-	cp ${RASS_DIR}/ae_${RADARSET}.eva/Retrieve.sum /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum
+	cp ${RASS_DIR}/ae_${RADARSET}.eva/Retrieve.sum /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cp ${RASS_DIR}/ae_${RADARSET}.eva/Summary_report.asc /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc"
 	cp ${RASS_DIR}/ae_${RADARSET}.eva/Summary_report.asc /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cp ${RASS_DIR}/ae_${RADARSET}.eva/Process.log /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log"
