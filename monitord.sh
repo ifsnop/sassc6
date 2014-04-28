@@ -44,6 +44,7 @@ start() {
 	fi
 	#daemon "/usr/bin/python /software/sassc/scripts/sassc6/monitord.py --watch-path /home/eval/datos/incoming >> /var/log/monitord.log &"
 	/software/sassc/scripts/sassc6/monitord.py --watch-path /home/eval/datos/incoming >> /var/log/monitord.log 2>&1 &
+	echo $! > /var/run/${prog}.pid
         RETVAL=$?
         echo
         [ $RETVAL -eq 0 ] && touch /var/lock/${prog};
