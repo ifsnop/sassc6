@@ -283,14 +283,14 @@ while [ "$#" -gt 5 ]; do
 	#fi
 	if [[ ${RADARSET} = *tma* ]]; then
 	    rm -rf ${RASS_DIR}
+	else
+            echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) enabling cockpit (${RASS_DIR}/cockpit.sh)"
+            echo "S_Cockpit ${RASS_DIR}/ae_${RADARSET}.eva" > ${RASS_DIR}/cockpit.sh
+            chmod 755 ${RASS_DIR}/cockpit.sh
 	fi
     else
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) error durante la ejecucion del sass-c, NO insertando en bbdd: logsize($processlog_size)"
     fi
-
-    echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) enabling cockpit (${RASS_DIR}/cockpit.sh)"
-    echo "S_Cockpit ${RASS_DIR}/ae_${RADARSET}.eva" > ${RASS_DIR}/cockpit.sh
-    chmod 755 ${RASS_DIR}/cockpit.sh
 
     # chmod 755 ${RASS_DIR}/ae_${RADARSET}.eva/multi.sh
     # echo "so_display MultiRadar ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs" > ${RASS_DIR}/multi.sh
@@ -308,7 +308,7 @@ done
 report_pid end
 
 echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cleaning old files"
-find $temp_path -mtime +6 -exec rm -rf '{}' \; 2> /dev/null
+find $temp_path -mtime +2 -exec rm -rf '{}' \; 2> /dev/null
 
 cuenta=`ps ax |grep CleanOrphan|grep delete | wc -l`
 if [ $cuenta -eq 0 ]; then
