@@ -233,8 +233,8 @@ while [ "$#" -gt 5 ]; do
 #    ${DIRECTORY}/${RADARSET}.dat /recording_details.par
 
     secs=$RANDOM
-    let "secs %= 50"
-    let "secs += 60"
+    let "secs %= 10"
+    let "secs += 20"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) waiting random ${secs} seconds"
     sleep $secs
     
