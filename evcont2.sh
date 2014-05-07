@@ -271,10 +271,10 @@ while [ "$#" -gt 5 ]; do
 	cp ${RASS_DIR}/ae_${RADARSET}.eva/Summary_report.asc /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cp ${RASS_DIR}/ae_${RADARSET}.eva/Process.log /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log"
 	cp ${RASS_DIR}/ae_${RADARSET}.eva/Process.log /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log
-	#echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) insertando en bbdd" 
-	#echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) /usr/bin/php /software/sassc6.6/scripts/evcont_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/cocir/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql"
-	#/usr/bin/php /software/sassc6.6/scripts/evcont_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql
-	#/usr/bin/mysql -u root -D cocir < /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql >> /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_process.log
+	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) insertando en bbdd"
+	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) /usr/bin/php /software/sassc/scripts/sassc6/evcont2_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql"
+	/usr/bin/php /software/sassc/scripts/sassc6/evcont2_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql
+	/usr/bin/mysql -u root -D pass < /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql >> /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log
 	
 	#if [[ ${RADARSET} != *tma* ]]; then 
 	#    echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) no es una evaluación de TMA, populando hits para kml coverage" 
