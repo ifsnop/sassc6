@@ -141,37 +141,12 @@ class EventHandler(pyinotify.ProcessEvent):
             print '{0} + ({1}) is a bz2 compressed file'.format(format_time(), file['nameext'])
         elif file['ext'] == '.gps':
             print '{0} + ({1}) is an operational timestamped recording file'.format(format_time(), file['nameext'])
+            spawnEvaluation(file, filename_extracted);
         elif file['ext'] == '.sgps':
             print '{0} + ({1}) is a mode s timestamped recording file'.format(format_time(), file['nameext'])
         elif file['ext'] == '.ast':
             print '{0} + ({1}) is an operational recording file, executing'.format(format_time(), file['nameext'])
-            #/software/sassc/scripts/sassc6/evcont2.sh <recording_file> <YY> <MM> <DD> <HHMMSS> <CFG1> <CFG2..>
-            execstr = '/bin/su - eval /bin/sh -c "/software/sassc/scripts/sassc6/evcont2.sh {0} {1} {2} {3} {4} {5} > '\
-                ' /home/eval/pass/logs/{6}{7}/{8}{9}{10}-{11}-{12}.log 2>&1"'\
-                .format(
-                file['nameext'],       #        0
-                filename_extracted[0], #YY      1
-                filename_extracted[1], #MM      2
-                filename_extracted[2], #DD      3
-                filename_extracted[4], #HHMMSS  4
-                filename_extracted[3], #CFG     5
-                filename_extracted[0], #YY      6
-                filename_extracted[1], #MM      7
-                filename_extracted[0], #YY      8
-                filename_extracted[1], #MM      9
-                filename_extracted[2], #DD      10
-                filename_extracted[3], #CFG     11
-                filename_extracted[4], #HHMMSS  12
-                )
-            # ensure that destination dirs exists, by creating them
-            for dest in ["logs", "summaries"]:
-                path = '/home/eval/pass/{0}/{1}{2}'.format(dest, filename_extracted[0], filename_extracted[1])
-                devnull = open(os.devnull, 'wb')
-                subprocess.call(["/bin/mkdir", "-p", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
-                subprocess.call(["/bin/chown", "-R", "eval.eval", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
-
-            print '{0} + executing({1})'.format(format_time(), execstr)
-            spawnDaemon(execstr)
+            spawnEvaluation(file, filename_extracted);
         else:
             print '{0} + ({1}) has been detected but not action defined'.format(format_time(), file['nameext'])
 
@@ -251,6 +226,37 @@ def update_database(file):
 #                ts_update timestamp, status text, UNIQUE (pathnameext))''')
     conn.commit()
     conn.close()
+
+def spawnEvaluation(file, filename_extracted):
+    #/software/sassc/scripts/sassc6/evcont2.sh <recording_file> <YY> <MM> <DD> <HHMMSS> <CFG1> <CFG2..>
+    execstr = '/bin/su - eval /bin/sh -c "/software/sassc/scripts/sassc6/evcont2.sh {0} {1} {2} {3} {4} {5} > '\
+        ' /home/eval/pass/logs/{6}{7}/{8}{9}{10}-{11}-{12}.log 2>&1"'\
+        .format(
+        file['nameext'],       #        0
+        filename_extracted[0], #YY      1
+        filename_extracted[1], #MM      2
+        filename_extracted[2], #DD      3
+        filename_extracted[4], #HHMMSS  4
+        filename_extracted[3], #CFG     5
+        filename_extracted[0], #YY      6
+        filename_extracted[1], #MM      7
+        filename_extracted[0], #YY      8
+        filename_extracted[1], #MM      9
+        filename_extracted[2], #DD      10
+        filename_extracted[3], #CFG     11
+        filename_extracted[4], #HHMMSS  12
+        )
+    # ensure that destination dirs exists, by creating them
+    for dest in ["logs", "summaries"]:
+        path = '/home/eval/pass/{0}/{1}{2}'.format(dest, filename_extracted[0], filename_extracted[1])
+        devnull = open(os.devnull, 'wb')
+        subprocess.call(["/bin/mkdir", "-p", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
+        subprocess.call(["/bin/chown", "-R", "eval.eval", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
+
+    print '{0} + executing({1})'.format(format_time(), execstr)
+    sys.stdout.flush()
+    spawnDaemon(execstr)
+    return
 
 def spawnDaemon(func):
     # do the UNIX double-fork magic, see Stevens' "Advanced 

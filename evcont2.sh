@@ -233,8 +233,8 @@ while [ "$#" -gt 5 ]; do
 #    ${DIRECTORY}/${RADARSET}.dat /recording_details.par
 
     secs=$RANDOM
-    let "secs %= 50"
-    let "secs += 60"
+    let "secs %= 10"
+    let "secs += 20"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) waiting random ${secs} seconds"
     sleep $secs
     
@@ -271,10 +271,10 @@ while [ "$#" -gt 5 ]; do
 	cp ${RASS_DIR}/ae_${RADARSET}.eva/Summary_report.asc /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cp ${RASS_DIR}/ae_${RADARSET}.eva/Process.log /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log"
 	cp ${RASS_DIR}/ae_${RADARSET}.eva/Process.log /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log
-	#echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) insertando en bbdd" 
-	#echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) /usr/bin/php /software/sassc6.6/scripts/evcont_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/cocir/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql"
-	#/usr/bin/php /software/sassc6.6/scripts/evcont_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql
-	#/usr/bin/mysql -u root -D cocir < /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql >> /home/eval/cocir/logs/${destination_dir}/${timestamp}_${cfg}_process.log
+	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) insertando en bbdd"
+	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) /usr/bin/php /software/sassc/scripts/sassc6/evcont2_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql"
+	/usr/bin/php /software/sassc/scripts/sassc6/evcont2_db.php /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_retrieve.sum ${cfg} $date_diff /home/eval/pass/summaries/${destination_dir}/${timestamp}_${cfg}_summary_report.asc > /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql
+	/usr/bin/mysql -u root -D pass < /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_insert.sql >> /home/eval/pass/logs/${destination_dir}/${timestamp}_${cfg}_process.log
 	
 	#if [[ ${RADARSET} != *tma* ]]; then 
 	#    echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) no es una evaluación de TMA, populando hits para kml coverage" 
@@ -283,14 +283,14 @@ while [ "$#" -gt 5 ]; do
 	#fi
 	if [[ ${RADARSET} = *tma* ]]; then
 	    rm -rf ${RASS_DIR}
+	else
+            echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) enabling cockpit (${RASS_DIR}/cockpit.sh)"
+            echo "S_Cockpit ${RASS_DIR}/ae_${RADARSET}.eva" > ${RASS_DIR}/cockpit.sh
+            chmod 755 ${RASS_DIR}/cockpit.sh
 	fi
     else
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) error durante la ejecucion del sass-c, NO insertando en bbdd: logsize($processlog_size)"
     fi
-
-    echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) enabling cockpit (${RASS_DIR}/cockpit.sh)"
-    echo "S_Cockpit ${RASS_DIR}/ae_${RADARSET}.eva" > ${RASS_DIR}/cockpit.sh
-    chmod 755 ${RASS_DIR}/cockpit.sh
 
     # chmod 755 ${RASS_DIR}/ae_${RADARSET}.eva/multi.sh
     # echo "so_display MultiRadar ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs" > ${RASS_DIR}/multi.sh
@@ -308,7 +308,7 @@ done
 report_pid end
 
 echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cleaning old files"
-find $temp_path -mtime +6 -exec rm -rf '{}' \; 2> /dev/null
+find $temp_path -mtime +2 -exec rm -rf '{}' \; 2> /dev/null
 
 cuenta=`ps ax |grep CleanOrphan|grep delete | wc -l`
 if [ $cuenta -eq 0 ]; then
