@@ -237,9 +237,9 @@ while [ "$#" -gt 5 ]; do
     let "secs += 20"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) waiting random ${secs} seconds"
     sleep $secs
-    
-    date_start=`date +%s` 
-    
+
+    date_start=`date +%s`
+
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) date_start_recording: >${date_start_recording}<"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) time_start_recording: >${time_start_recording}<"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) time_stop_recording: >${time_stop_recording}<"
@@ -248,18 +248,18 @@ while [ "$#" -gt 5 ]; do
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) radarset: >${RADARSET}<"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) rass_dir: >${RASS_DIR}<"
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) rqmtask_dir: >${RQMTASK_DIR}<"
-    
+
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) ./auto_rass_eval.ksh $date_start_recording $time_start_recording $time_stop_recording $PLOTFILENAME $DIRECTORY/$RADARSET.dat $RASS_DIR $RQMTASK_DIR"
     auto_rass_eval.ksh "$date_start_recording" "$time_start_recording" "$time_stop_recording" "$PLOTFILENAME" "$DIRECTORY/$RADARSET.dat" "$RASS_DIR" "$RQMTASK_DIR"
     ret=$?
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) return code from auto_rass_eval.ksh: >$ret<"
     date_stop=`date +%s` 
-    
+
     date_diff=$(( $date_stop - $date_start ))
     processlog_size=$(stat -c%s ${RASS_DIR}/ae_${RADARSET}.eva/Process.log)
     #si error al ejecutar stat, garantizamos no insertar
     if [[ $? -ne 0 ]]; then
-	processlog_size=5000001
+        processlog_size=5000001
     fi
     #comprobamos que existe un fichero con resultados (retrieve.sum) y que no haya errores de inserción en bbdd durante la ejecución del sassc
     #en caso de errores, el process.log crece muchísimo
@@ -313,13 +313,13 @@ find $temp_path -mtime +2 -exec rm -rf '{}' \; 2> /dev/null
 cuenta=`ps ax |grep CleanOrphan|grep delete | wc -l`
 if [ $cuenta -eq 0 ]; then
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) removing orphaned databases"
-    CleanOrphanDb.sh --delete 
-else 
+    /software/sassc/bin/CleanOrphanDb.sh --delete
+else
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) already removing orphaned databases"
 fi
 
 # --- Finally, remove the ascii ue_stderr_reader --- #
-rm -rf $RQMRUN_DIR/tmp/ue_stderr_reader       
+rm -rf $RQMRUN_DIR/tmp/ue_stderr_reader
 
 if [[ "${erase_recording}" = "true" ]]; then
     echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) erasing >$asterix_file<"
