@@ -284,9 +284,52 @@ while [ "$#" -gt 5 ]; do
 	if [[ ${RADARSET} = *tma* ]]; then
 	    rm -rf ${RASS_DIR}
 	else
-            echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) enabling cockpit (${RASS_DIR}/cockpit.sh)"
-            echo "S_Cockpit ${RASS_DIR}/ae_${RADARSET}.eva" > ${RASS_DIR}/cockpit.sh
-            chmod 755 ${RASS_DIR}/cockpit.sh
+
+            echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) enabling cockpit(${RASS_DIR}/cockpit.sh)"
+            echo -e "CHse\n0 0\n0\n0 0 0 0" > ${RASS_DIR}/ae_${RADARSET}.eva/%CHse.ocs
+
+            rasta=`find ${RASS_DIR}/ae_${RADARSET}.eva/ -name "%Rasta_*.rst"`
+            date=`echo "$rasta" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "${date}\n0 0\n0\n0 0 0 0" > $rasta
+
+            listac=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%listacid*.lci"`
+            date=`echo "$listac" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "${date}\n0 0\n0\n0 0 0 0" > $listac
+
+            listcode=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%listcode*.lic"`
+            date=`echo "$listcode" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "${date}\n0 0\n0\n0 0 0 0" > $listcode
+
+            unc=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%unchained_*.lup"`
+            date=`echo "$unc" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "${date}\n0 0\n0\n0 0 0 0" > $unc
+
+            fpa=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%false_*.fpa"`
+            date=`echo "$fpa" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "${date}F\n0 0\n0\n0 0 0 0" > $fpa
+
+            graph=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%graph_pd*.gpd"`
+            date=`echo "$graph" | cut -d"d" -f2 | cut -d"." -f1`
+            echo -e "${date}F\n0 0\n0\n0 0 0 0" > $graph
+
+            tab=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%tabpd_*.tpd"`
+            date=`echo "$tab" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "${date}\n0 0\n0\n0 0 0 0" > $tab
+
+            echo -e "MUsyer_F\n0 0\n0\n0 0 0 0" > ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/MUse.mur/%MUsyer.sys
+            echo -e "MUtr_F\n0 0\n0\n0 0 0 0" > ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/MUse.mur/MUsyer.sys/%MUtr.trj
+
+            pra=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%pra*.pra"`
+            date=`echo "$pra" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "pra_${date}F\n0 0\n0\n0 0 0 0" > $pra
+
+            paa=`find ${RASS_DIR}/ae_${RADARSET}.eva/CHse.ocs/ -name "%paa*.paa"`
+            date=`echo "$paa" | cut -d"_" -f3,4,5,6,7,8,9 | cut -d"." -f1`
+            echo -e "paa_${date}F\n0 0\n0\n0 0 0 0" > $paa
+
+            echo "S_Cockpit ${RASS_DIR}/ae_${RADARSET}.eva" > ${RASS_DIR}/cockpit.sh 2> /dev/null
+            chmod 755 ${RASS_DIR}/cockpit.sh 2> /dev/null
+
 	fi
     else
 	echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) error durante la ejecucion del sass-c, NO insertando en bbdd: logsize($processlog_size)"
@@ -308,7 +351,8 @@ done
 report_pid end
 
 echo "`date +'%Y/%m/%d %H:%M:%S'` ($$) cleaning old files"
-find $temp_path -mtime +2 -exec rm -rf '{}' \; 2> /dev/null
+# find $temp_path -mtime +2 -exec rm -rf '{}' \; 2> /dev/null
+find $temp_path -mtime +30 -exec rm -rf '{}' \; 2> /dev/null #Aumentada la persistencia a 30 días por petición de Alberto
 
 cuenta=`ps ax |grep CleanOrphan|grep delete | wc -l`
 if [ $cuenta -eq 0 ]; then
