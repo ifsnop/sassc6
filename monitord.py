@@ -32,7 +32,8 @@ config = { 'db_file' : None,
     'max_size_bytes' : 1024*1024*1024,
     'recursive' : False,
     'temp_path' : '/tmp',
-    'watch_path' : './',
+    'watch_path' : '.',
+    'results_path' : '/home/eval/cocir',
     'self': 'monitord.py'
     }
 
@@ -248,7 +249,7 @@ def spawnEvaluation(file, filename_extracted):
         )
     # ensure that destination dirs exists, by creating them
     for dest in ["logs", "summaries"]:
-        path = '/home/eval/pass/{0}/{1}{2}'.format(dest, filename_extracted[0], filename_extracted[1])
+        path = '{0}/{1}/{2}{3}'.format(config['results_path'], dest, filename_extracted[0], filename_extracted[1])
         devnull = open(os.devnull, 'wb')
         subprocess.call(["/bin/mkdir", "-p", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
         subprocess.call(["/bin/chown", "-R", "eval.eval", path], stdin=None, stdout=devnull, stderr=devnull, close_fds=True)
@@ -315,6 +316,8 @@ def main(argv):
         print
         print ' -d, --db-file            sqlite path to store sha1 signatures'
         print '                          default to \'' + str(config['db_file']) + '\''
+        print ' -p, --results-path       destinatio directory to store results'
+        print '                          default to \'' + str(config['results_path']) + '\''
         print ' -f, --min-free           minimum free space in watch & temp directories in bytes'
         print '                          defaults to', format_size(config['min_free_bytes'])
         print ' -s, --min-size           minimum file size to react, in bytes'
@@ -341,6 +344,8 @@ def main(argv):
             sys.exit()
         elif opt in ('-d', '--db-file'):
             config['db_file'] = arg
+        elif opt in ('-p', '--results-path'):
+            config['results_path'] = arg
         elif opt in ('-f', '--min-free'):
             config['min_free_bytes'] = float(arg)
         elif opt in ('-s', '--min-size'):
@@ -364,6 +369,7 @@ def main(argv):
     print '{0} > options: recursive({1})'.format(format_time(), config['recursive'])
     print '{0} > options: temp-path({1}) free_bytes({2})'.format(format_time(), config['temp_path'], format_size(get_free_space_bytes(config['temp_path'])))
     print '{0} > options: watch-path({1}) free_bytes({2})'.format(format_time(), config['watch_path'], format_size(get_free_space_bytes(config['watch_path'])))
+    print '{0} > options: results-path({1}) free_bytes({2})'.format(format_time(), config['results_path'], format_size(get_free_space_bytes(config['results_path'])))
 
     ret = check_free_space([config['watch_path'], config['temp_path']], config['min_free_bytes'])
     if isinstance(ret, basestring):
