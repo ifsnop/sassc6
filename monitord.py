@@ -28,7 +28,7 @@ import subprocess
 
 config = { 'db_file' : None,
     'min_free_bytes' : 1024*1024*1024*5,
-    'min_size_bytes' : 0,
+    'min_size_bytes' : 1024*1024,
     'max_size_bytes' : 1024*1024*1024,
     'recursive' : False,
     'temp_path' : '/tmp',
